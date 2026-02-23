@@ -57,7 +57,7 @@ export async function updateItemQuantity(
       if (quantity === 0) {
         await removeFromCart(lineItem.id);
       } else {
-        await updateCart(lineItem.id, quantity);
+        await updateCart(lineItem.id, lineItem.merchandise.id, quantity);
       }
     } else if (quantity > 0) {
       // If the item doesn't exist in the cart and quantity > 0, add it

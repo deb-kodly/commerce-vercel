@@ -1,10 +1,12 @@
 // Build-time environment variable validation
 const requiredEnvironmentVariables = [
+  'SFDC_COMMERCE_WEBSTORE_SITE_URL',
   'SFDC_COMMERCE_API_VERSION',
-  'SFDC_COMMERCE_WEBSTORE_ID',
-  'SFDC_COMMERCE_WEBSTORE_NAME',
-  'SFDC_COMMERCE_WEBSTORE_SITE_ID',
-  'SFDC_COMMERCE_WEBSTORE_SITE_URL'
+  'SALESFORCE_CONSUMER_KEY',
+  'SALESFORCE_CONSUMER_SECRET',
+  'SFDC_SERVICE_USER_USERNAME',
+  'SFDC_SERVICE_USER_PASSWORD',
+  'SFDC_CLOUDCRAZE_STOREFRONT',
 ];
 const missingEnvironmentVariables = requiredEnvironmentVariables.filter(envVar => !process.env[envVar]);
 
@@ -28,7 +30,7 @@ export default {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'alpinecommerce32.my.site.com',
+        hostname: 'shopdev.alliapetcare.com',
         pathname: '/**',
       },
       {

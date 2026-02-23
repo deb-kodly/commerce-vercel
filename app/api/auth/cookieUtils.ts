@@ -1,72 +1,93 @@
-import { NextRequest } from 'next/server';
-import { decode } from 'js-base64';
 import { ServerCookieManager } from '../../../lib/server-cookies';
 
 // -----------------------------
 // Cookie Getters
 // -----------------------------
 
-/** Get the SFDC Auth Token from cookies. */
-export async function getSfdcAuthToken(): Promise<string | undefined> {
-    return (await ServerCookieManager.getInstance().getAuthToken()) || undefined;
+/** Get the portal user's Salesforce User ID from cookies. */
+export async function getPortalUserIdFromCookie(): Promise<string | null> {
+  return ServerCookieManager.getInstance().getPortalUserId();
 }
 
-/** Get the CSRF token from cookies and decode it. */
-export async function getCsrfTokenFromCookie(): Promise<string | null> {
-    const token = await ServerCookieManager.getInstance().getCsrfToken();
-    return token ? decode(token) : null;
+/** Get the portal user's effective Account ID from cookies. */
+export async function getEffAccountIdFromCookie(): Promise<string | null> {
+  return ServerCookieManager.getInstance().getEffAccountId();
 }
 
 /** Get the guest user status from cookies. */
 export async function getIsGuestUserFromCookie(): Promise<boolean | null> {
-    return await ServerCookieManager.getInstance().getIsGuestUser();
+  return ServerCookieManager.getInstance().getIsGuestUser();
 }
 
 /** Get the cart ID from cookies. */
 export async function getCartIdFromCookie(): Promise<string | null> {
-    return await ServerCookieManager.getInstance().getCartId();
+  return ServerCookieManager.getInstance().getCartId();
 }
 
-/** Get the guest cart session UUID from cookies (optionally using a request). */
-export async function getGuestCartSessionUuid(req?: NextRequest): Promise<string | null | undefined> {
-    return await ServerCookieManager.getInstance(req).getGuestCartSessionUuid();
+/** Get the portal user's locale from cookies. */
+export async function getUserLocaleFromCookie(): Promise<string | null> {
+  return ServerCookieManager.getInstance().getUserLocale();
 }
 
-/** Get the guest essential UUID from cookies. */
-export async function getGuestEssentialUuidFromCookie(): Promise<string | null> {
-    return await ServerCookieManager.getInstance().getGuestEssentialUuid();
+/** Get the portal user's display name from cookies. */
+export async function getUserNameFromCookie(): Promise<string | null> {
+  return ServerCookieManager.getInstance().getUserName();
 }
 
 // -----------------------------
-// Cookie Setters & Deleters
+// Cookie Setters
 // -----------------------------
+
+/** Set the portal user's Salesforce User ID in cookies. */
+export async function setPortalUserIdInCookie(userId: string) {
+  await ServerCookieManager.getInstance().setPortalUserId(userId);
+}
+
+/** Set the portal user's effective Account ID in cookies. */
+export async function setEffAccountIdInCookie(accountId: string) {
+  await ServerCookieManager.getInstance().setEffAccountId(accountId);
+}
 
 /** Set the cart ID in cookies. */
 export async function setCartIdInCookie(cartId: string) {
-    await ServerCookieManager.getInstance().setCartId(cartId);
+  await ServerCookieManager.getInstance().setCartId(cartId);
 }
 
-/** Set guest user status to default (true) in cookies. */
+/** Set the portal user's locale in cookies. */
+export async function setUserLocaleInCookie(userLocale: string) {
+  await ServerCookieManager.getInstance().setUserLocale(userLocale);
+}
+
+/** Reset isGuestUser to true (default). */
 export async function updateIsGuestUserToDefaultInCookie() {
-    await ServerCookieManager.getInstance().setIsGuestUser(true);
+  await ServerCookieManager.getInstance().setIsGuestUser(true);
 }
 
-/** Delete the SFDC Auth Token from cookies. */
-export async function deleteSfdcAuthToken(): Promise<void> {
-    await ServerCookieManager.getInstance().deleteAuthToken();
+// -----------------------------
+// Cookie Deleters
+// -----------------------------
+
+/** Delete the portal user ID cookie. */
+export async function deletePortalUserIdCookie(): Promise<void> {
+  await ServerCookieManager.getInstance().deletePortalUserId();
 }
 
-/** Delete the guest cart session ID from cookies. */
-export async function deleteGuestCartSessionIdCookie(): Promise<void> {
-    await ServerCookieManager.getInstance().deleteGuestCartSessionUuid();
+/** Delete the effective account ID cookie. */
+export async function deleteEffAccountIdCookie(): Promise<void> {
+  await ServerCookieManager.getInstance().deleteEffAccountId();
 }
 
-/** Delete the cart ID from cookies. */
+/** Delete the cart ID cookie. */
 export async function deleteCartIdCookie(): Promise<void> {
-    await ServerCookieManager.getInstance().deleteCartId();
+  await ServerCookieManager.getInstance().deleteCartId();
 }
 
-/** Delete the CSRF token from cookies. */
-export async function deleteCsrfTokenCookie(): Promise<void> {
-    await ServerCookieManager.getInstance().deleteCsrfToken();
-} 
+/** Delete the user locale cookie. */
+export async function deleteUserLocaleCookie(): Promise<void> {
+  await ServerCookieManager.getInstance().deleteUserLocale();
+}
+
+/** Delete the user name cookie. */
+export async function deleteUserNameCookie(): Promise<void> {
+  await ServerCookieManager.getInstance().deleteUserName();
+}

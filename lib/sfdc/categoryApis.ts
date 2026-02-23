@@ -1,96 +1,29 @@
-import {
-  CHILD_CATEGORIES_URL,
-  PARENT_CATEGORIES_URL,
-  SFDC_COMMERCE_WEBSTORE_API_URL,
-  SFDC_COMMERCE_WEBSTORE_ID,
-} from 'lib/constants';
-import {
-  Category,
-  Collection,
-} from './types';
-import { makeSfdcApiCall } from './sfdcApiUtil';
+import { CCRZ_CATEGORY_API_URL } from 'lib/constants';
+import { Category, Collection } from './types';
+import { makeSfdcApiCall, HttpMethod } from './sfdcApiUtil';
 import { cache } from 'react';
-import { HttpMethod } from 'lib/sfdc/sfdcApiUtil';
 
 // In-memory cache with TTL for getCategories
 let categoriesCache: { data: Category[] | null; generatedAt: number } = { data: null, generatedAt: 0 };
 const CATEGORIES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in ms
 
-async function fetchParentCategories(): Promise<Category[]> {
-  let results: Category[] = [];
-  try {
-    const endpoint =
-      SFDC_COMMERCE_WEBSTORE_API_URL + '/' + SFDC_COMMERCE_WEBSTORE_ID + PARENT_CATEGORIES_URL;
-
-    const response = await makeSfdcApiCall(endpoint, HttpMethod.GET);
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
-    results = extractParentCategories(data);
-  } catch (error) {
-    console.error(`Error fetching parent categories for store ${SFDC_COMMERCE_WEBSTORE_ID}:`, error);
-  }
-  return results;
-}
-
-function extractParentCategories(response: any): Category[] {
-  const uniqueCategories: Map<string, Category> = new Map();
-  if (response && response.productCategories) {
-    response.productCategories.forEach((category: any) => {
-      const { id, fields } = category;
-      if (fields?.IsNavigational === 'true' && id && fields.Name) {
-        uniqueCategories.set(id, {
-          categoryId: id, categoryName: fields.Name, numberOfProducts: fields.NumberOfProducts, path: `search/${id}`
-        });
-      }
-    });
-  }
-  return Array.from(uniqueCategories.values());
-}
-
-async function fetchChildCategories(parentCategories: Category[]): Promise<Category[]> {
-  const fetchPromises = parentCategories.map(async (parent) => {
-    try {
-      const endpoint =
-        SFDC_COMMERCE_WEBSTORE_API_URL +
-        '/' +
-        SFDC_COMMERCE_WEBSTORE_ID +
-        CHILD_CATEGORIES_URL +
-        parent.categoryId;
-
-      const response = await makeSfdcApiCall(endpoint, HttpMethod.GET);
-      const text = await response.text();
-      const data = text ? JSON.parse(text) : null;
-      return extractChildCategories(data, parent.categoryId, parent.categoryName || '');
-    } catch (error) {
-      console.error(`Error fetching child categories from parent category ${parent.categoryId}:`, error);
-      return []; // Gracefully skip this parent
-    }
-  });
-
-  const results = await Promise.all(fetchPromises);
-  return results.flat(); // Flatten nested arrays into a single Category[]
-}
-
-function extractChildCategories(
-  data: any,
-  parentCategoryId: string,
-  parentCategoryName: string
-): Category[] {
-  const uniqueCategories: Map<string, Category> = new Map();
-  data.productCategories.forEach((category: any) => {
-    const { id, fields } = category;
-    if (id && fields.Name) {
-      uniqueCategories.set(id, {
-        categoryId: id,
-        categoryName: fields.Name,
-        parentCategoryId: parentCategoryId,
-        parentCategoryName: parentCategoryName,
-        numberOfProducts: fields.NumberOfProducts,
-        path: `search/${id}`
+function flattenCategories(categoryList: any[]): Category[] {
+  const result: Category[] = [];
+  for (const cat of categoryList) {
+    if (cat.sfid && cat.sfdcName) {
+      result.push({
+        categoryId: cat.sfid,
+        categoryName: cat.sfdcName,
+        parentCategoryId: cat.parentCategory || undefined,
+        numberOfProducts: cat.productCount ?? 0,
+        path: `search/${cat.sfid}`,
       });
     }
-  });
-  return Array.from(uniqueCategories.values());
+    if (Array.isArray(cat.productCategories) && cat.productCategories.length > 0) {
+      result.push(...flattenCategories(cat.productCategories));
+    }
+  }
+  return result;
 }
 
 /**
@@ -103,35 +36,42 @@ export const getCategories = cache(async function getCategories(): Promise<Categ
     return categoriesCache.data;
   }
 
-  // get parent categories
-  const parentCategories = await fetchParentCategories();
+  try {
+    const response = await makeSfdcApiCall(CCRZ_CATEGORY_API_URL + '/fetch?ccLog=shopxLog', HttpMethod.POST, { ROOTCATEGORY: 'a3J2p0000035jt3EAA' });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
 
-  // get child categories
-  const childCategories = await fetchChildCategories(parentCategories);
+    if (data?.ccLog) {
+      console.log('[getCategories] ccLog:', JSON.stringify(data.ccLog, null, 2));
+    }
 
-  const allcategories = parentCategories.concat(childCategories);
+    if (!data?.success || !Array.isArray(data.categoryList)) {
+      return [];
+    }
 
-  const sortedCategories = allcategories.sort((a, b) =>
-    a.categoryName.localeCompare(b.categoryName)
-  );
-
-  categoriesCache = { data: sortedCategories, generatedAt: now };
-  return sortedCategories;
+    const categories = flattenCategories(data.categoryList);
+    const sorted = categories.sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+    categoriesCache = { data: sorted, generatedAt: now };
+    return sorted;
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
 });
 
 /**
  * Returns a limited set of categories such that the total number of products does not exceed maxProducts.
  * This is used to limit the number of products displayed on the home page to increase the performance.
  * @param {Category[]} categories - The list of categories to filter.
- * @param {number} [maxProducts=10] - The maximum number of products to include.
+ * @param {number} [maxProducts=3] - The maximum number of products to include.
  * @returns {Category[]} The limited set of categories.
  */
 export function getLimitedCategories(categories: Category[], maxProducts = 3): Category[] {
-  let selectedCategories: Category[] = [];
+  const selectedCategories: Category[] = [];
   let totalProducts = 0;
 
   for (const category of categories) {
-    const productsCount = Number(category.numberOfProducts); // Convert to number
+    const productsCount = Number(category.numberOfProducts);
 
     // Always include at least one category
     if (selectedCategories.length === 0 || totalProducts + productsCount <= maxProducts) {
@@ -150,5 +90,28 @@ export function getLimitedCategories(categories: Category[], maxProducts = 3): C
  * @returns {Promise<Collection | undefined>} The collection object, or undefined if not found.
  */
 export async function getCollection(handle: string): Promise<Collection | undefined> {
-  return undefined;
+  try {
+    const response = await makeSfdcApiCall(CCRZ_CATEGORY_API_URL + '/fetch', HttpMethod.POST, {
+      ID: handle,
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+
+    if (!data?.success || !Array.isArray(data.categoryList) || data.categoryList.length === 0) {
+      return undefined;
+    }
+
+    const cat = data.categoryList[0];
+    return {
+      handle: cat.sfid,
+      title: cat.sfdcName,
+      description: cat.shortDesc || cat.longDesc || '',
+      seo: { title: cat.sfdcName, description: cat.shortDesc || '' },
+      updatedAt: '',
+      path: `search/${cat.sfid}`,
+    };
+  } catch (error) {
+    console.error(`Error fetching collection ${handle}:`, error);
+    return undefined;
+  }
 }

@@ -1,22 +1,15 @@
-import { SFDC_COMMERCE_WEBSTORE_API_URL, SFDC_COMMERCE_WEBSTORE_ID, SESSION_CONTEXT_URL } from 'lib/constants';
-import { makeSfdcApiCall } from './sfdcApiUtil';
-import { HttpMethod } from 'lib/sfdc/sfdcApiUtil';
+import { getPortalUserIdFromCookie } from 'app/api/auth/cookieUtils';
 
 /**
- * Fetches the session context details from the SFDC API to determine if the user is a guest.
- * @returns {Promise<boolean>} True if the user is a guest, otherwise false.
+ * Determines if the current user is a guest by checking for a stored portal user ID.
+ * Returns true if the user is a guest (no portal user ID cookie), false if authenticated.
  */
 export async function fetchSessionContextDetails(): Promise<boolean> {
-  let isGuestUser = null;
   try {
-    const endpoint =
-      SFDC_COMMERCE_WEBSTORE_API_URL + '/' + SFDC_COMMERCE_WEBSTORE_ID + SESSION_CONTEXT_URL;
-    const response = await makeSfdcApiCall(endpoint, HttpMethod.GET);
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
-    isGuestUser = data?.guestUser;
+    const portalUserId = await getPortalUserIdFromCookie();
+    return !portalUserId;
   } catch (error) {
-    console.error(`Error fetching session context details :`, error);
+    console.error('Error checking session context:', error);
+    return true; // default to guest on error
   }
-  return isGuestUser;
-} 
+}

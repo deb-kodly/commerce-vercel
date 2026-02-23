@@ -1,14 +1,14 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { CookieOptions, defaultCookieOptions } from './sfdc/types';
-import { 
-  CART_ID_COOKIE_NAME, 
-  CSRF_TOKEN_COOKIE_NAME, 
+import {
+  CART_ID_COOKIE_NAME,
   GUEST_COOKIE_AGE,
-  IS_GUEST_USER_COOKIE_NAME, 
-  SFDC_AUTH_TOKEN_COOKIE_NAME, 
-  SFDC_GUEST_CART_SESSION_ID_COOKIE_NAME, 
-  SFDC_GUEST_ESSENTIAL_ID_COOKIE_NAME 
+  IS_GUEST_USER_COOKIE_NAME,
+  SFDC_EFF_ACCOUNT_ID_COOKIE_NAME,
+  SFDC_PORTAL_USER_ID_COOKIE_NAME,
+  SFDC_USER_LOCALE_COOKIE_NAME,
+  SFDC_USER_NAME_COOKIE_NAME,
 } from './constants';
 
 export class ServerCookieManager {
@@ -29,8 +29,7 @@ export class ServerCookieManager {
   private async getServerCookies() {
     try {
       return cookies();
-    } catch (error) {
-      // If cookies() fails (during static generation), return null
+    } catch {
       return null;
     }
   }
@@ -46,19 +45,11 @@ export class ServerCookieManager {
   private async setCookieValue(name: string, value: string, options: CookieOptions = {}) {
     const opts = { ...defaultCookieOptions, ...options };
     if (this.request) {
-      this.request.cookies.set({
-        name,
-        value,
-        ...opts
-      });
+      this.request.cookies.set({ name, value, ...opts });
     } else {
       const serverCookies = await this.getServerCookies();
       if (serverCookies) {
-        serverCookies.set({
-          name,
-          value,
-          ...opts
-        });
+        serverCookies.set({ name, value, ...opts });
       }
     }
   }
@@ -72,32 +63,6 @@ export class ServerCookieManager {
         serverCookies.delete(name);
       }
     }
-  }
-
-  // Auth Token Methods
-  async getAuthToken(): Promise<string | null> {
-    return this.getCookieValue(SFDC_AUTH_TOKEN_COOKIE_NAME);
-  }
-
-  async setAuthToken(token: string, options: CookieOptions = {}) {
-    await this.setCookieValue(SFDC_AUTH_TOKEN_COOKIE_NAME, token, options);
-  }
-
-  async deleteAuthToken() {
-    await this.deleteCookieValue(SFDC_AUTH_TOKEN_COOKIE_NAME);
-  }
-
-  // CSRF Token Methods
-  async getCsrfToken(): Promise<string | null> {
-    return this.getCookieValue(CSRF_TOKEN_COOKIE_NAME);
-  }
-
-  async setCsrfToken(token: string, options: CookieOptions = {}) {
-    await this.setCookieValue(CSRF_TOKEN_COOKIE_NAME, token, options);
-  }
-
-  async deleteCsrfToken() {
-    await this.deleteCookieValue(CSRF_TOKEN_COOKIE_NAME);
   }
 
   // Guest User Methods
@@ -115,6 +80,32 @@ export class ServerCookieManager {
     await this.setCookieValue(IS_GUEST_USER_COOKIE_NAME, JSON.stringify(isGuest), options);
   }
 
+  // Portal User ID Methods
+  async getPortalUserId(): Promise<string | null> {
+    return this.getCookieValue(SFDC_PORTAL_USER_ID_COOKIE_NAME);
+  }
+
+  async setPortalUserId(userId: string, options: CookieOptions = {}) {
+    await this.setCookieValue(SFDC_PORTAL_USER_ID_COOKIE_NAME, userId, options);
+  }
+
+  async deletePortalUserId() {
+    await this.deleteCookieValue(SFDC_PORTAL_USER_ID_COOKIE_NAME);
+  }
+
+  // Effective Account ID Methods
+  async getEffAccountId(): Promise<string | null> {
+    return this.getCookieValue(SFDC_EFF_ACCOUNT_ID_COOKIE_NAME);
+  }
+
+  async setEffAccountId(accountId: string, options: CookieOptions = {}) {
+    await this.setCookieValue(SFDC_EFF_ACCOUNT_ID_COOKIE_NAME, accountId, options);
+  }
+
+  async deleteEffAccountId() {
+    await this.deleteCookieValue(SFDC_EFF_ACCOUNT_ID_COOKIE_NAME);
+  }
+
   // Cart Methods
   async getCartId(): Promise<string | null> {
     return this.getCookieValue(CART_ID_COOKIE_NAME);
@@ -128,27 +119,30 @@ export class ServerCookieManager {
     await this.deleteCookieValue(CART_ID_COOKIE_NAME);
   }
 
-  // Guest UUID Methods
-  async getGuestEssentialUuid(): Promise<string | null> {
-    return this.getCookieValue(SFDC_GUEST_ESSENTIAL_ID_COOKIE_NAME);
+  // User Locale Methods
+  async getUserLocale(): Promise<string | null> {
+    return this.getCookieValue(SFDC_USER_LOCALE_COOKIE_NAME);
   }
 
-  async setGuestEssentialUuid(uuid: string, options: CookieOptions = {}) {
-    const opts = { ...defaultCookieOptions, maxAge: GUEST_COOKIE_AGE, ...options };
-    await this.setCookieValue(SFDC_GUEST_ESSENTIAL_ID_COOKIE_NAME, uuid, opts);
+  async setUserLocale(userLocale: string, options: CookieOptions = {}) {
+    await this.setCookieValue(SFDC_USER_LOCALE_COOKIE_NAME, userLocale, options);
   }
 
-  // Guest Cart Session Methods
-  async getGuestCartSessionUuid(): Promise<string | null> {
-    return this.getCookieValue(SFDC_GUEST_CART_SESSION_ID_COOKIE_NAME);
+  async deleteUserLocale() {
+    await this.deleteCookieValue(SFDC_USER_LOCALE_COOKIE_NAME);
   }
 
-  async setGuestCartSessionUuid(uuid: string, options: CookieOptions = {}) {
-    await this.setCookieValue(SFDC_GUEST_CART_SESSION_ID_COOKIE_NAME, uuid, options);
+  // User Name Methods
+  async getUserName(): Promise<string | null> {
+    return this.getCookieValue(SFDC_USER_NAME_COOKIE_NAME);
   }
 
-  async deleteGuestCartSessionUuid() {
-    await this.deleteCookieValue(SFDC_GUEST_CART_SESSION_ID_COOKIE_NAME);
+  async setUserName(userName: string, options: CookieOptions = {}) {
+    await this.setCookieValue(SFDC_USER_NAME_COOKIE_NAME, userName, options);
+  }
+
+  async deleteUserName() {
+    await this.deleteCookieValue(SFDC_USER_NAME_COOKIE_NAME);
   }
 
   public async getCookie(name: string): Promise<string | undefined> {
@@ -158,6 +152,5 @@ export class ServerCookieManager {
 }
 
 export async function getCookie(name: string): Promise<string | undefined> {
-  const cookieManager = ServerCookieManager.getInstance();
-  return cookieManager.getCookie(name);
-} 
+  return ServerCookieManager.getInstance().getCookie(name);
+}

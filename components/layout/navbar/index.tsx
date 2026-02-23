@@ -1,70 +1,122 @@
-import LogoSquare from 'components/logo-square';
 import { Category } from 'lib/sfdc';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, lazy } from 'react';
 import MobileMenu from './mobile-menu';
 import Search, { SearchSkeleton } from './search';
-import { LogoutButton } from './LogoutButton';
-import { SFDC_COMMERCE_WEBSTORE_NAME } from 'lib/constants';
+import { AccountDropdown } from './AccountDropdown';
 
 const LazyCartModal = lazy(() => import('components/cart/modal'));
 
 export async function Navbar({
   isGuestUser,
+  userName,
   categoriesPromise
 }: {
   isGuestUser: boolean | null;
+  userName: string | null;
   categoriesPromise: Promise<Category[]>;
 }) {
   let categories = await categoriesPromise;
-  categories = categories?.slice(0, 3); // show only first 3 categories
+  categories = categories?.slice(0, 2);
+
   return (
-    <nav className="relative flex items-center justify-between p-4 lg:px-6">
-      <div className="block flex-none md:hidden">
-        <Suspense fallback={null}>
-          <MobileMenu categories={categories} />
-        </Suspense>
+    <header className="sticky top-0 z-40 w-full">
+      {/* Top banner: #00573f, white text, 12px DroidSans Bold, py-1 px-2, centered */}
+      <div className="bg-[#00573f] text-white text-center text-[12px] font-bold leading-[18px] py-1 px-2">
+        Discover the superiority of Natures Menu products
       </div>
-      <div className="flex w-full items-center">
-        <div className="flex w-full md:w-1/3">
-          <Link
-            href="/"
-            prefetch={true}
-            className="mr-2 flex w-full items-center justify-center md:w-auto lg:mr-6"
-          >
-            <LogoSquare />
-            <div className="ml-2 flex-none text-sm font-medium uppercase md:hidden lg:block">
-              {SFDC_COMMERCE_WEBSTORE_NAME}
-            </div>
+
+      {/* Main header: white, border-b #edecec, h-80px, px-48px */}
+      <nav className="bg-white border-b border-[#edecec] flex items-center h-20 px-12">
+
+        {/* Mobile hamburger */}
+        <div className="block flex-none md:hidden mr-3">
+          <Suspense fallback={null}>
+            <MobileMenu categories={categories} />
+          </Suspense>
+        </div>
+
+        {/* LEFT: Logo + nav entries (Browse Shop, Promos, categories, Search) */}
+        <div className="flex items-center gap-6 shrink-0">
+          {/* Logo: 91×56px */}
+          <Link href="/" prefetch={true} className="shrink-0">
+            <Image
+              src="/logo-affinity.png"
+              alt="Affinity Pet Care"
+              width={91}
+              height={56}
+              className="object-contain h-14 w-auto"
+            />
           </Link>
-          {categories.length ? (
-            <ul className="hidden gap-6 text-sm md:flex md:items-center">
-              {categories.map((item: Category) => (
-                <li key={item.categoryName}>
-                  <Link
-                    href={`/${item.path}`}
-                    prefetch={true}
-                    className="text-neutral-500 underline-offset-4 hover:text-black hover:underline dark:text-neutral-400 dark:hover:text-neutral-300"
-                  >
-                    {item.categoryName}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+
+          {/* Nav entries — stretch to full header height, each item h-20 px-3 */}
+          <div className="hidden md:flex items-stretch h-20">
+            <Link
+              href="/search/a3J2p0000035jt3EAA"
+              prefetch={true}
+              className="flex items-center h-20 px-3 text-[14px] font-bold uppercase tracking-[0.14px] text-[#665c5c] hover:text-black whitespace-nowrap"
+            >
+              Browse Shop
+            </Link>
+
+            {/* Promos */}
+            <Link
+              href="#"
+              className="flex items-center h-20 px-3 text-[14px] font-bold uppercase tracking-[0.14px] text-[#665c5c] hover:text-black hover:bg-[#f8f7f7] whitespace-nowrap"
+            >
+              Promos
+            </Link>
+
+            {categories.map((cat: Category) => (
+              <Link
+                key={cat.categoryName}
+                href={`/${cat.path}`}
+                prefetch={true}
+                className="flex items-center h-20 px-3 text-[14px] font-bold uppercase tracking-[0.14px] text-[#665c5c] hover:text-black whitespace-nowrap"
+              >
+                {cat.categoryName}
+              </Link>
+            ))}
+
+            {/* Search bar — part of the left nav cluster per Figma, w-264px */}
+            <div className="hidden lg:flex items-center h-20 px-3">
+              <Suspense fallback={<SearchSkeleton />}>
+                <Search />
+              </Suspense>
+            </div>
+          </div>
         </div>
-        <div className="hidden justify-center md:flex md:w-1/3">
-          <Suspense fallback={<SearchSkeleton />}>
-            <Search />
-          </Suspense>
+
+        {/* RIGHT: Knowledge Centre | Account | Divider | Cart */}
+        <div className="flex items-stretch ml-auto h-full">
+
+          {/* Knowledge Centre: w-160px, gap-4px, 12px Bold, #665c5c */}
+          <Link
+            href="#"
+            className="hidden lg:flex items-center gap-1 w-40 h-full px-3 text-[12px] font-bold leading-[18px] text-[#665c5c] hover:text-black whitespace-nowrap"
+          >
+            <img src="/images/Bond_KnowledgeCentreIcon.svg" alt="" className="h-6 w-6 shrink-0" />
+            Knowledge Centre
+          </Link>
+
+          {/* Account dropdown */}
+          <AccountDropdown isGuestUser={isGuestUser} userName={userName} />
+
+          {/* Vertical divider: 35px */}
+          <div className="hidden lg:flex items-center">
+            <div className="w-px h-[35px] bg-[#d6d1d1]" />
+          </div>
+
+          {/* Cart */}
+          <div className="flex items-center hover:bg-[#f8f7f7] px-4 py-2 gap-1">
+            <Suspense fallback={<div className="h-[30px] w-[30px]" />}>
+              <LazyCartModal />
+            </Suspense>
+          </div>
         </div>
-        <div className="flex justify-end md:w-1/3">
-          <LogoutButton isGuestUser={isGuestUser} />
-          <Suspense fallback={<div className="h-11 w-11" />}>
-            <LazyCartModal />
-          </Suspense>
-        </div>
-      </div>
-    </nav>
+
+      </nav>
+    </header>
   );
 }

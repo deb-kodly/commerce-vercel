@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:resources.docs.salesforce.com)",
+      "WebFetch(domain:developer.salesforce.com)",
+      "WebFetch(domain:www.scribd.com)",
+      "WebFetch(domain:www.figma.com)",
+      "Bash(python3:*)",
+      "Bash(ls:*)",
+      "Bash(/tmp/figma_fetch.sh:*)",
+      "Bash(chmod:*)",
+      "Bash(/tmp/figma_fetch2.sh:*)",
+      "Bash(/tmp/figma_fetch2.sh)",
+      "Bash(# Extract:*)",
+      "Bash(/tmp/figma_design_context.sh:*)",
+      "Bash(/usr/bin/curl:*)",
+      "Bash(SESSION_ID=\"14b5c261-466f-4eed-9a63-cedfe47fef9e\")",
+      "Bash(__NEW_LINE_f6804e2a1b348072__ /usr/bin/curl --max-time 10 \"http://127.0.0.1:3845/mcp\" -s -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"method\"\":\"\"tools/list\"\",\"\"params\"\":{},\"\"id\"\":2}')",
+      "Bash(SESSION_ID=\"4b9e223d-dd5f-489c-bd03-66f8df811132\")",
+      "Bash(__NEW_LINE_d0a139330fd6ec8d__ /usr/bin/curl --max-time 60 \"http://127.0.0.1:3845/mcp\" -s -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d \"{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"get_design_context\"\",\"\"arguments\"\":{\"\"nodeId\"\":\"\"8954-32557\"\",\"\"clientLanguages\"\":\"\"typescript,css\"\",\"\"clientFrameworks\"\":\"\"react,nextjs\"\"}},\"\"id\"\":4}\")",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(SESSION_ID=\"d41ae2db-4f67-4fc7-92e5-1c4e2fa3682c\")",
+      "Bash(__NEW_LINE_59be9dd6438ab64e__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Accept: application/json, text/event-stream\" -H \"Content-Type: application/json\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(__NEW_LINE_06c197192dbd08cd__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Accept: application/json, text/event-stream\" -H \"Content-Type: application/json\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(# Verify:*)",
+      "Bash(pip3 install:*)",
+      "Bash(SESSION_ID=\"a463e377-94d5-4290-bd77-31ff40cb72a9\")",
+      "Bash(__NEW_LINE_337cb337c38837bc__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(__NEW_LINE_2453c2b6437b8e7a__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(__NEW_LINE_5d4897debc9c17f6__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(SESSION_ID=\"cf62ce36-0b79-4c7d-a0b3-308646ebc49a\")",
+      "Bash(__NEW_LINE_e1d88132c6af0a58__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(__NEW_LINE_5669bf478db48c63__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION_ID\" -d '{:*)",
+      "Bash(SESSION=\"e75c3f33-638b-45c3-96a4-f658b5579ca8\")",
+      "Bash(__NEW_LINE_26592e5957b5eaff__ curl -s -X POST http://127.0.0.1:3845/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -H \"mcp-session-id: $SESSION\" -d '{:*)",
+      "WebFetch(domain:127.0.0.1)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

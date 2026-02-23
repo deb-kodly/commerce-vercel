@@ -1,71 +1,42 @@
-import { deleteCsrfTokenCookie, deleteSfdcAuthToken } from 'app/api/auth/cookieUtils';
-import { generateGuestUuid } from 'app/api/auth/authUtil';
-import { CSRF_TOKEN_COOKIE_NAME, GUEST_COOKIE_AGE, IS_GUEST_USER_COOKIE_NAME, SFDC_AUTH_TOKEN_COOKIE_NAME, SFDC_GUEST_ESSENTIAL_ID_COOKIE_NAME, } from 'lib/constants';
-import { fetchSessionContextDetails } from 'lib/sfdc';
+import { IS_GUEST_USER_COOKIE_NAME, SFDC_PORTAL_USER_ID_COOKIE_NAME } from 'lib/constants';
 import { NextRequest, NextResponse } from 'next/server';
 
+const PUBLIC_PATHS = ['/login'];
+
 export async function middleware(request: NextRequest) {
-  const res = NextResponse.next();
+  const { pathname } = request.nextUrl;
 
-  const guestUuidInCookie = request.cookies.get(SFDC_GUEST_ESSENTIAL_ID_COOKIE_NAME)?.value;
-  const authToken = request.cookies.get(SFDC_AUTH_TOKEN_COOKIE_NAME)?.value;
+  // A user is authenticated if they have a portal user ID cookie set at login
+  const portalUserId = request.cookies.get(SFDC_PORTAL_USER_ID_COOKIE_NAME)?.value;
+  const isAuthenticated = !!portalUserId;
 
-  let isGuestUserRes = true; // Default to true (guest user)
-
-  if (authToken) {
-    try {
-      // Only check session context when auth token exists
-      const sessionInfo = await fetchSessionContextDetails();
-      isGuestUserRes = sessionInfo;
-    } catch (err) {
-      console.error('Error fetching session context:', err);
-    }
+  // Redirect unauthenticated users to /login for all protected routes
+  if (!isAuthenticated && !PUBLIC_PATHS.includes(pathname)) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Scenario 1: Auth token exists but session is invalid (i.e. user is actually guest)
-  if (authToken && isGuestUserRes === true) {
-    await deleteSfdcAuthToken();
-    await deleteCsrfTokenCookie();
-
-    res.cookies.delete(SFDC_AUTH_TOKEN_COOKIE_NAME);
-    res.cookies.delete(CSRF_TOKEN_COOKIE_NAME);
+  // Redirect authenticated users away from /login to the home page
+  if (isAuthenticated && pathname === '/login') {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  // Set isGuestUser cookie
-  res.cookies.set(IS_GUEST_USER_COOKIE_NAME, JSON.stringify(isGuestUserRes), {
+  // Forward x-pathname as a request header so server layouts can detect the current route
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', pathname);
+
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+
+  res.cookies.set(IS_GUEST_USER_COOKIE_NAME, JSON.stringify(!isAuthenticated), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
   });
-  res.headers.set('x-guest-user', JSON.stringify(isGuestUserRes));
-
-  // Scenario 3: Generate guest UUID if not present
-  if (!guestUuidInCookie) {
-    const newGuestUuid = generateGuestUuid();
-    res.cookies.set(SFDC_GUEST_ESSENTIAL_ID_COOKIE_NAME, newGuestUuid, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/',
-      maxAge: GUEST_COOKIE_AGE,
-    });
-    res.headers.set('x-guest-uuid', newGuestUuid);
-  }
+  res.headers.set('x-guest-user', JSON.stringify(!isAuthenticated));
 
   return res;
 }
 
-// Configure middleware to run on specific paths
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 };

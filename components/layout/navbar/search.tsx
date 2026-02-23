@@ -1,6 +1,5 @@
 'use client';
 
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import Form from 'next/form';
 import { useSearchParams } from 'next/navigation';
 
@@ -8,19 +7,19 @@ export default function Search() {
   const searchParams = useSearchParams();
 
   return (
-    <Form action="/search" className="w-max-[550px] relative w-full lg:w-80 xl:w-full">
+    <Form action="/search" className="relative w-[240px]">
       <input
         key={searchParams?.get('q')}
         type="text"
         name="q"
-        placeholder="Search for products..."
+        placeholder="Search by SKU, product name..."
         autoComplete="off"
         defaultValue={searchParams?.get('q') || ''}
-        className="text-md w-full rounded-lg border bg-white px-4 py-2 text-black placeholder:text-neutral-500 md:text-sm dark:border-neutral-800 dark:bg-transparent dark:text-white dark:placeholder:text-neutral-400 cursor-not-allowed"
+        className="w-full rounded border border-[#d6d1d1] bg-white pl-3 pr-9 py-1 text-[12px] leading-[18px] text-[#1b1818] placeholder:text-[#a59c9c] focus:border-[#00573f] focus:outline-none focus:ring-1 focus:ring-[#00573f] cursor-not-allowed"
         disabled
       />
-      <div className="absolute right-0 top-0 mr-3 flex h-full items-center">
-        <MagnifyingGlassIcon className="h-4" />
+      <div className="absolute right-2 top-0 flex h-full items-center pointer-events-none">
+        <img src="/images/Bond_SearchIcon.svg" alt="" className="h-6 w-6" />
       </div>
     </Form>
   );
@@ -28,14 +27,14 @@ export default function Search() {
 
 export function SearchSkeleton() {
   return (
-    <form className="w-max-[550px] relative w-full lg:w-80 xl:w-full">
+    <form className="relative w-[240px]">
       <input
-        placeholder="Search for products mob..."
-        className="w-full rounded-lg border bg-white px-4 py-2 text-sm text-black placeholder:text-neutral-500 dark:border-neutral-800 dark:bg-transparent dark:text-white dark:placeholder:text-neutral-400 cursor-not-allowed"
+        placeholder="Search by SKU, product name..."
+        className="w-full rounded border border-[#d6d1d1] bg-white pl-3 pr-9 py-1 text-[12px] leading-[18px] text-[#1b1818] placeholder:text-[#a59c9c] cursor-not-allowed"
         disabled
       />
-      <div className="absolute right-0 top-0 mr-3 flex h-full items-center">
-        <MagnifyingGlassIcon className="h-4" />
+      <div className="absolute right-2 top-0 flex h-full items-center pointer-events-none">
+        <img src="/images/Bond_SearchIcon.svg" alt="" className="h-6 w-6" />
       </div>
     </form>
   );

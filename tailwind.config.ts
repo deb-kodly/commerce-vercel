@@ -6,7 +6,9 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-geist-sans)']
+        sans: ['var(--font-geist-sans)'],
+        noto: ['var(--font-noto-sans)', 'Arial', 'sans-serif'],
+        droidsans: ['DroidSans', 'Arial', 'sans-serif'],
       },
       keyframes: {
         fadeIn: {

@@ -1,233 +1,179 @@
-import {
-    CATEGORY_PRODUCTS_SEARCH_URL,
-    PRODUCT_DETAILS_URL,
-    PRODUCTS_PRICING_URL,
-    SFDC_COMMERCE_WEBSTORE_API_URL,
-    SFDC_COMMERCE_WEBSTORE_ID,
-} from 'lib/constants';
-import {
-    Product,
-    Category,
-    ProductOption,
-    PricingApiResponse,
-} from './types';
-import { makeSfdcApiCall } from './sfdcApiUtil';
-import { HttpMethod } from 'lib/sfdc/sfdcApiUtil';
+import { CCRZ_PRODUCT_API_URL } from 'lib/constants';
+import { Product, Category, ProductOption, ProductVariant } from './types';
+import { makeSfdcApiCall, HttpMethod } from './sfdcApiUtil';
+
+function extractImages(product: any): { url: string; altText: string; width: number; height: number }[] {
+  const medias: any[] = product.EProductMedias || [];
+  if (medias.length === 0) return [];
+  return medias.map((m: any) => ({
+    url: m.URI || '',
+    altText: product.sfdcName || '',
+    width: 0,
+    height: 0,
+  }));
+}
 
 /**
- * Fetches products for the given categories from the SFDC API.
- * @param {Object} params - The parameters object.
- * @param {Category[]} params.categories - The categories to fetch products for.
- * @param {boolean} [params.reverse] - Whether to reverse the product order.
- * @param {string} [params.sortKey] - The key to sort products by.
- * @returns {Promise<Product[]>} An array of products.
+ * Extract price from either the `find` endpoint's productPricingData (keyed by sfid)
+ * or the `fetch` endpoint's PriceResults (keyed by SKU).
+ */
+function extractPrice(
+  pricingData: any,
+  sfid: string,
+  sku: string,
+  source: 'find' | 'fetch'
+): { amount: string; currencyCode: string } {
+  if (source === 'find' && pricingData?.[sfid]) {
+    return {
+      amount: String(pricingData[sfid].unitPrice || pricingData[sfid].listPrice || '0'),
+      currencyCode: pricingData[sfid].currencyISOCode || 'USD',
+    };
+  }
+  if (source === 'fetch' && pricingData?.[sku]) {
+    const entry = pricingData[sku].priceEntries?.[0];
+    return {
+      amount: String(entry?.price || '0'),
+      currencyCode: entry?.currencyCode || 'USD',
+    };
+  }
+  return { amount: '0', currencyCode: 'USD' };
+}
+
+function mapProduct(p: any, pricingData: any, priceSource: 'find' | 'fetch'): Product {
+  const images = extractImages(p);
+  const price = extractPrice(pricingData, p.sfid, p.SKU, priceSource);
+  const options: ProductOption[] = [];
+  const variants: ProductVariant[] = [
+    {
+      id: p.sfid,
+      title: p.sfdcName || p.SKU,
+      availableForSale: true,
+      selectedOptions: [],
+      price,
+    },
+  ];
+
+  return {
+    id: p.sfid,
+    handle: p.SKU || p.sfid,
+    availableForSale: true,
+    title: p.sfdcName || '',
+    description: p.shortDesc || p.longDesc || '',
+    descriptionHtml: p.longDesc || p.shortDesc || '',
+    options,
+    priceRange: {
+      minVariantPrice: price,
+      maxVariantPrice: price,
+    },
+    variants,
+    featuredImage: images[0] || { url: '', altText: '', width: 0, height: 0 },
+    images,
+    seo: { title: p.sfdcName || '', description: p.shortDesc || '' },
+    tags: [],
+    updatedAt: '',
+  };
+}
+
+/**
+ * Fetches products for the given categories from the CloudCraze API.
  */
 export async function getProductsByCategories({
-    categories,
-    reverse,
-    sortKey,
-    pageSize
+  categories,
+  reverse,
+  sortKey,
+  pageSize,
 }: {
-    categories: Category[];
-    reverse?: boolean;
-    sortKey?: string;
-    pageSize?: number;
+  categories: Category[];
+  reverse?: boolean;
+  sortKey?: string;
+  pageSize?: number;
 }): Promise<Product[]> {
-    // Fetch products based on categories (inline logic from fetchCategoryProducts)
-    const productPromises = categories.map(async (category) => {
-        try {
-            const endpoint =
-                SFDC_COMMERCE_WEBSTORE_API_URL +
-                '/' +
-                SFDC_COMMERCE_WEBSTORE_ID +
-                CATEGORY_PRODUCTS_SEARCH_URL +
-                category.categoryId + '&pageSize=' + pageSize;
+  const categoryIds = categories.map((c) => c.categoryId);
+  if (categoryIds.length === 0) return [];
 
-            const response = await makeSfdcApiCall(endpoint, HttpMethod.GET);
-            const text = await response.text();
-            const data = text ? JSON.parse(text) : null;
-            return mapCategoryProductsToProduct(data);
-        } catch (error) {
-            console.error(`Error fetching products for category ${category.categoryId}:`, error);
-            return [];
-        }
+  try {
+    const response = await makeSfdcApiCall(CCRZ_PRODUCT_API_URL + '/find', HttpMethod.POST, {
+      CATEGORYIDS: categoryIds,
+      ISPRICED: true,
     });
-
-    const categoryProductsArrays = await Promise.all(productPromises);
-    const categoryProducts = categoryProductsArrays.flat();
-
-    // Then fetch pricing for those products
-    const pricingData = await fetchProductsPricing(categoryProducts.map(product => product.id));
-
-    // Merge pricing data with products
-    const result = categoryProducts.map(product => ({
-        ...product,
-        priceRange: pricingData ? pricingData[product.id] : undefined
-    }));
-    return result;
-}
-
-async function fetchProductsPricing(productIds: string[]): Promise<Record<string, any>> {
-    const pricingData: Record<string, any> = {};
-    const endpoint = `${SFDC_COMMERCE_WEBSTORE_API_URL}/${SFDC_COMMERCE_WEBSTORE_ID}${PRODUCTS_PRICING_URL}${productIds}`;
-    const response = await makeSfdcApiCall(endpoint, HttpMethod.GET);
     const text = await response.text();
     const data = text ? JSON.parse(text) : null;
-    if (data && Array.isArray(data.pricingLineItemResults)) {
-        for (const item of data.pricingLineItemResults) {
-            pricingData[item.productId] = {
-                minVariantPrice: {
-                    amount: item.listPrice,
-                    currencyCode: data.currencyIsoCode || 'USD',
-                },
-                maxVariantPrice: {
-                    amount: item.unitPrice,
-                    currencyCode: data.currencyIsoCode || 'USD',
-                },
-            };
-        }
-    }
-    return pricingData;
-}
 
-function mapCategoryProductsToProduct(apiResponse: any): Product[] {
-    if (!apiResponse || !apiResponse.productsPage) {
-        return [];
-    }
-    return apiResponse.productsPage.products.map((product: any) => ({
-        id: product.id,
-        title: product.name,
-        description: product.fields?.Description?.value || "",
-        handle: product.id,
-        featuredImage: {
-            url: product.defaultImage?.url || "",
-            altText: product.defaultImage?.alternateText || "",
-        }
-    }));
-}
+    if (!data?.success || !Array.isArray(data.productList)) return [];
 
-function mapPricingToProduct(product: Product, pricingResponse: PricingApiResponse): Product {
-    product.priceRange = {
-        maxVariantPrice: {
-            amount: pricingResponse.unitPrice,
-            currencyCode: pricingResponse.currencyIsoCode
-        },
-        minVariantPrice: {
-            amount: pricingResponse.listPrice,
-            currencyCode: pricingResponse.currencyIsoCode
-        }
-    };
-    return product;
+    return data.productList.map((p: any) => mapProduct(p, data.productPricingData, 'find'));
+  } catch (error) {
+    console.error('Error fetching products by categories:', error);
+    return [];
+  }
 }
 
 /**
- * Fetches a single product by its handle or ID from the SFDC API.
- * @param {string} handle - The product handle or ID.
- * @returns {Promise<Product | undefined>} The product object, or undefined if not found.
+ * Fetches a single product by its SKU handle from the CloudCraze API.
  */
 export async function getProduct(handle: string): Promise<Product | undefined> {
-    const productId = handle;
-    try {
-        // Prepare endpoints
-        const productDetailsEndpoint =
-            SFDC_COMMERCE_WEBSTORE_API_URL + '/' +
-            SFDC_COMMERCE_WEBSTORE_ID +
-            PRODUCT_DETAILS_URL +
-            '/' +
-            productId;
+  try {
+    const response = await makeSfdcApiCall(CCRZ_PRODUCT_API_URL + '/fetch', HttpMethod.POST, {
+      SKU: handle,
+      ISPRICED: true,
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
 
-        // Fetch product details and pricing in parallel
-        const [productDetailsResponse, pricingBatch] = await Promise.all([
-            makeSfdcApiCall(productDetailsEndpoint, HttpMethod.GET),
-            fetchProductsPricing([productId])
-        ]);
-        const detailsText = await productDetailsResponse.text();
-        const detailsData = detailsText ? JSON.parse(detailsText) : null;
-        const details = extractProductDetails(detailsData);
-        const pricingApiResponse = pricingBatch[productId] ? {
-            unitPrice: pricingBatch[productId].maxVariantPrice.amount,
-            listPrice: pricingBatch[productId].minVariantPrice.amount,
-            currencyIsoCode: pricingBatch[productId].maxVariantPrice.currencyCode,
-        } : {
-            unitPrice: '0',
-            listPrice: '0',
-            currencyIsoCode: 'USD',
-        };
-
-        const productWithPricing = mapPricingToProduct(details, pricingApiResponse);
-        productWithPricing.variants = extractProductVariants(detailsData, pricingApiResponse);
-
-        return productWithPricing;
-    } catch (error) {
-        console.error(`Error fetching product details for ${productId}:`, error);
-        return undefined;
+    if (!data?.success || !Array.isArray(data.productList) || data.productList.length === 0) {
+      return undefined;
     }
-}
 
-function extractProductDetails(apiResponse: any): any {
-    return {
-        availableForSale: true,
-        id: apiResponse.id,
-        title: apiResponse.fields.Name,
-        description: apiResponse.fields?.Description || "",
-        featuredImage: {
-            url: apiResponse.defaultImage?.url || "",
-            altText: apiResponse.defaultImage?.alternateText || "",
-        },
-        images: [{
-            url: apiResponse.defaultImage?.url,
-            altText: apiResponse.defaultImage?.alternateText,
-        }],
-        options: extractProductOptions(apiResponse),
-        tags: [],
-        seo: {
-            title: apiResponse.fields.name,
-            description: ''
-        }
-    };
-}
-
-function extractProductOptions(apiResponse: any): ProductOption[] {
-    return Object.values(apiResponse.attributeSetInfo || {})
-        .flatMap((attributeSet: any) =>
-            Object.values(attributeSet.attributeInfo || {}).map((attribute: any) => ({
-                id: attribute.fieldEnumOrId,
-                name: attribute.label,
-                values: attribute.options.map((option: any) => option.label),
-            }))
-        );
-}
-
-function extractProductVariants(apiResponse: any, pricingApiResponse: PricingApiResponse): any[] {
-    const productVariants = apiResponse.attributeSetInfo ? [] : [
-        {
-            id: apiResponse.id,
-            selectedOptions: [],
-            price: {
-                amount: pricingApiResponse.unitPrice,
-                currencyCode: pricingApiResponse.currencyIsoCode
-            }
-        },
-    ]
-    return productVariants;
+    return mapProduct(data.productList[0], data.PriceResults, 'fetch');
+  } catch (error) {
+    console.error(`Error fetching product ${handle}:`, error);
+    return undefined;
+  }
 }
 
 /**
- * Fetches products based on a search query, sort key, and order from the SFDC API.
- * @param {Object} params - The parameters object.
- * @param {string} [params.query] - The search query.
- * @param {boolean} [params.reverse] - Whether to reverse the product order.
- * @param {string} [params.sortKey] - The key to sort products by.
- * @returns {Promise<Product[]>} An array of products.
+ * Searches products by query string. Returns an empty array when no query is provided.
  */
 export async function getProducts({
-    query,
-    reverse,
-    sortKey
+  query,
+  reverse,
+  sortKey,
 }: {
-    query?: string;
-    reverse?: boolean;
-    sortKey?: string;
+  query?: string;
+  reverse?: boolean;
+  sortKey?: string;
 }): Promise<Product[]> {
+  if (!query) return [];
+
+  try {
+    // Step 1: search for matching product SFIDs
+    const searchResponse = await makeSfdcApiCall(CCRZ_PRODUCT_API_URL + '/search', HttpMethod.POST, {
+      SEARCHTERM: query,
+    });
+    const searchText = await searchResponse.text();
+    const searchData = searchText ? JSON.parse(searchText) : null;
+
+    if (
+      !searchData?.success ||
+      !Array.isArray(searchData.productList) ||
+      searchData.productList.length === 0
+    ) {
+      return [];
+    }
+
+    // Step 2: fetch full product details and pricing for those SFIDs
+    const fetchResponse = await makeSfdcApiCall(CCRZ_PRODUCT_API_URL + '/fetch', HttpMethod.POST, {
+      PRODUCTLIST: searchData.productList,
+      ISPRICED: true,
+    });
+    const fetchText = await fetchResponse.text();
+    const fetchData = fetchText ? JSON.parse(fetchText) : null;
+
+    if (!fetchData?.success || !Array.isArray(fetchData.productList)) return [];
+
+    return fetchData.productList.map((p: any) => mapProduct(p, fetchData.PriceResults, 'fetch'));
+  } catch (error) {
+    console.error(`Error searching products for "${query}":`, error);
     return [];
+  }
 }
