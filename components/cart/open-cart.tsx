@@ -1,38 +1,40 @@
-import { ShoppingCartIcon } from '@heroicons/react/24/outline';
-import clsx from 'clsx';
-
 export default function OpenCart({
-  className,
   quantity,
   totalAmount,
-  currencyCode
+  currencyCode,
 }: {
-  className?: string;
   quantity?: number;
   totalAmount?: string;
   currencyCode?: string;
 }) {
   const formattedTotal =
-    totalAmount && currencyCode
-      ? new Intl.NumberFormat('en-EU', { style: 'currency', currency: currencyCode }).format(
+    totalAmount && currencyCode && Number(totalAmount) > 0
+      ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: currencyCode }).format(
           Number(totalAmount)
         )
       : null;
 
   return (
     <div className="flex items-center gap-2">
-      <div className="relative text-[#665c5c] hover:text-black">
-        <ShoppingCartIcon
-          className={clsx('h-[30px] w-[30px] transition-all ease-in-out hover:scale-110', className)}
+      {/* Cart icon with badge */}
+      <div className="relative">
+        <img
+          src="/images/Bond_CartIcon.svg"
+          alt="Cart"
+          style={{ width: 18.77, height: 19.31, flexShrink: 0, overflow: 'visible', objectFit: 'cover' }}
         />
         {quantity ? (
-          <div className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#00573f] text-xs font-bold text-white">
-            {quantity}
+          <div className="absolute -top-2 -right-2 flex min-w-[18px] h-[18px] px-[3px] items-center justify-center rounded-full bg-[#00573f] text-[10px] font-bold text-white leading-none">
+            {quantity > 99 ? '99+' : quantity}
           </div>
         ) : null}
       </div>
+
+      {/* Total */}
       {formattedTotal && (
-        <span className="hidden lg:block text-sm font-bold whitespace-nowrap text-[#1b1818]">{formattedTotal}</span>
+        <span className="hidden lg:block text-[13px] font-bold whitespace-nowrap text-[#1b1818]">
+          {formattedTotal}
+        </span>
       )}
     </div>
   );

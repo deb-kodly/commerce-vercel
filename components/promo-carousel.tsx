@@ -6,12 +6,17 @@ import { useCallback, useEffect, useState } from 'react';
 // Add your carousel images to /public/carousel/ and list the filenames here.
 // Supported formats: .jpg, .jpeg, .png, .webp
 const SLIDES: string[] = [
-  '/carousel/DD4060 VERTICAL NUEVO DESCUENTO.png',
-  '/carousel/DD4065 VERTICAL NUEVO.png',
-  '/carousel/DD4068 VERTICA NUEVO DTO.png',
+  '/carousel/UK PROMO NATURES MENU.jpg',
+  '/carousel/UK PROMO NATURES.jpg',
+  '/carousel/BANNER PRUEBA UK (2).png',
+  '/carousel/DD4050.png',
+  '/carousel/DD4060 HORIZONTAL NUEVO DTO.png',
+  '/carousel/DD4065 HORIZONTAL.png',
+  '/carousel/DD4068 HORIZONTAL NUEVO DTO.png',
+  '/carousel/DD4069 HORIZONTAL.png',
   '/carousel/DD4071 HORIZONTAL.png',
-  '/carousel/DD4071 VERTICAL.png',
-  '/carousel/Raw freeze dried 25 OFF.png',
+  '/carousel/DD4072 HORIZONTAL.png',
+  '/carousel/DD4073 HORIZONTAL.png',
 ];
 
 const AUTO_PLAY_MS = 4000;

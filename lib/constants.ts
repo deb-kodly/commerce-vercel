@@ -27,7 +27,6 @@ export const TAGS = {
 };
 
 export const HIDDEN_PRODUCT_TAG = 'nextjs-frontend-hidden';
-export const DEFAULT_OPTION = 'Default Title';
 
 /**
  * Env Variables
@@ -113,6 +112,9 @@ export const CCRZ_API_BASE_URL = SFDC_COMMERCE_WEBSTORE_SITE_URL + '/services/ap
 
 // CloudCraze data service API version (e.g. v9) — configurable per environment
 const CCRZ_DS_VERSION = process.env.CCRZ_DS_VERSION ?? 'v9';
+
+// CloudCraze root category ID — represents the full product catalog
+export const ROOT_CATEGORY_ID = 'ALL_UK';
 
 // CloudCraze REST API resource paths (version included)
 export const CCRZ_CART_API_URL = `${CCRZ_API_BASE_URL}/cccart/${CCRZ_DS_VERSION}`;

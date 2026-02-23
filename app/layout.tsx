@@ -11,7 +11,7 @@ const notoSans = Noto_Sans({
   variable: '--font-noto-sans',
   display: 'swap',
 });
-import { getCart, getCategories, Cart } from 'lib/sfdc';
+import { getCart, Cart } from 'lib/sfdc';
 import { ensureStartsWith } from 'lib/utils';
 import { headers } from 'next/headers';
 import { ReactNode, Suspense } from 'react';
@@ -54,7 +54,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   const isGuestUser = await getIsGuestUserFromCookie();
   const userName = await getUserNameFromCookie();
-  const categoriesPromise = isLoginPage ? Promise.resolve([]) : getCategories();
 
   // For logged-in users, always attempt to fetch the cart (populates cart ID cookie if missing after login).
   // For guest users, only fetch if a cart ID cookie already exists.
@@ -71,7 +70,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         ) : (
           <CartProvider cartPromise={cartPromise}>
             <Suspense fallback={<div className="h-16 w-full animate-pulse bg-neutral-100" />}>
-              <Navbar isGuestUser={isGuestUser} userName={userName} categoriesPromise={categoriesPromise} />
+              <Navbar isGuestUser={isGuestUser} userName={userName} />
             </Suspense>
             <main className="flex-grow w-full">
               <Suspense fallback={<Loading />}>{children}</Suspense>
@@ -79,7 +78,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <WelcomeToast />
             </main>
             <Suspense fallback={<div className="h-16 w-full animate-pulse bg-neutral-100" />}>
-              <Footer categoriesPromise={categoriesPromise} />
+              <Footer />
             </Suspense>
           </CartProvider>
         )}

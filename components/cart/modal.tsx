@@ -3,29 +3,30 @@
 import { Dialog, Transition } from '@headlessui/react';
 import { ShoppingCartIcon } from '@heroicons/react/24/outline';
 import Price from 'components/price';
-import { DEFAULT_OPTION } from 'lib/constants';
-import { createUrl } from 'lib/utils';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
+import type { CartItem } from 'lib/sfdc/types';
 import { useCart } from './cart-context';
 import CloseCart from './close-cart';
 import { DeleteItemButton } from './delete-item-button';
 import { EditItemQuantityButton } from './edit-item-quantity-button';
 import OpenCart from './open-cart';
-import { createCartAndSetCookie, redirectToCheckout } from './actions';
+import { createCartAndSetCookie, fetchCartWithDetails, redirectToCheckout } from './actions';
 import clsx from 'clsx';
 
-type MerchandiseSearchParams = {
-  [key: string]: string;
-};
 
 export default function CartModal() {
   const { cart, updateCartItem } = useCart();
   const [isOpen, setIsOpen] = useState(false);
-  const quantityRef = useRef(cart?.totalQuantity);
+  const [detailedLines, setDetailedLines] = useState<CartItem[] | undefined>(undefined);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const quantityRef = useRef<number | undefined>(undefined);
+  // Tracks whether the initial cart load has been processed (to avoid auto-opening on page load)
+  const initialLoadDoneRef = useRef(false);
   const openCart = () => setIsOpen(true);
   const closeCart = () => setIsOpen(false);
+
   useEffect(() => {
     if (cart && !cart.id) {
       createCartAndSetCookie();
@@ -33,23 +34,48 @@ export default function CartModal() {
   }, [cart]);
 
   useEffect(() => {
-    if (
-      cart?.totalQuantity &&
-      cart?.totalQuantity !== quantityRef.current &&
-      cart?.totalQuantity > 0
-    ) {
-      if (!isOpen) {
-        setIsOpen(true);
-      }
-      quantityRef.current = cart?.totalQuantity;
+    const currentCount = cart?.lines.length ?? 0;
+
+    // First time cart data arrives — sync the ref silently, don't open modal
+    if (!initialLoadDoneRef.current && cart !== undefined) {
+      quantityRef.current = currentCount;
+      initialLoadDoneRef.current = true;
+      return;
     }
-  }, [isOpen, cart?.totalQuantity, quantityRef]);
+
+    // Only open when count increases (user just added an item)
+    if (
+      initialLoadDoneRef.current &&
+      currentCount > 0 &&
+      currentCount !== quantityRef.current
+    ) {
+      if (!isOpen) setIsOpen(true);
+      quantityRef.current = currentCount;
+    }
+  }, [isOpen, cart]);
+
+  // Lazy-fetch product details (title, image) when the modal is open.
+  // Re-fetch when cart line count changes (e.g. after server confirms an add).
+  const cartLineCount = cart?.lines.length ?? 0;
+  useEffect(() => {
+    if (!isOpen) return;
+    // Clear stale details so the UI falls back to optimistic cart lines while loading
+    setDetailedLines(undefined);
+    setLoadingDetails(true);
+    fetchCartWithDetails().then((result) => {
+      setDetailedLines(result?.lines);
+      setLoadingDetails(false);
+    });
+  }, [isOpen, cartLineCount]);
+
+  // Use lines enriched with product details when available; fall back to optimistic/server lines
+  const displayLines = detailedLines ?? cart?.lines ?? [];
 
   return (
     <>
       <button aria-label="Open cart" onClick={openCart}>
         <OpenCart
-          quantity={cart?.totalQuantity}
+          quantity={cart?.lines.length}
           totalAmount={cart?.cost?.totalAmount?.amount}
           currencyCode={cart?.cost?.totalAmount?.currencyCode}
         />
@@ -84,31 +110,25 @@ export default function CartModal() {
                 </button>
               </div>
 
-              {!cart || cart.lines.length === 0 ? (
+              {!cart || cart.totalQuantity === 0 ? (
                 <div className="mt-20 flex w-full flex-col items-center justify-center overflow-hidden">
                   <ShoppingCartIcon className="h-16" />
                   <p className="mt-6 text-center text-2xl font-bold">Your cart is empty.</p>
                 </div>
+              ) : loadingDetails && displayLines.length === 0 ? (
+                <div className="mt-20 flex w-full flex-col items-center justify-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#edecec] border-t-[#00573f]" />
+                  <p className="text-sm text-[#665c5c]">Loading cart…</p>
+                </div>
               ) : (
                 <div className="flex h-full flex-col justify-between overflow-hidden p-1">
                   <ul className="flex-grow overflow-auto py-4">
-                    {cart.lines
+                    {displayLines
                       .sort((a, b) =>
                         a.merchandise.product.title.localeCompare(b.merchandise.product.title)
                       )
                       .map((item, i) => {
-                        const merchandiseSearchParams = {} as MerchandiseSearchParams;
-
-                        item.merchandise.selectedOptions.forEach(({ name, value }) => {
-                          if (value !== DEFAULT_OPTION) {
-                            merchandiseSearchParams[name.toLowerCase()] = value;
-                          }
-                        });
-
-                        const merchandiseUrl = createUrl(
-                          `/product/${item.merchandise.product.handle}`,
-                          new URLSearchParams(merchandiseSearchParams)
-                        );
+                        const merchandiseUrl = `/product/${item.merchandise.product.handle}`;
 
                         return (
                           <li
@@ -141,11 +161,6 @@ export default function CartModal() {
                                     <span className="leading-tight">
                                       {item.merchandise.product.title}
                                     </span>
-                                    {item.merchandise.title !== DEFAULT_OPTION ? (
-                                      <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                                        {item.merchandise.title}
-                                      </p>
-                                    ) : null}
                                   </div>
                                 </Link>
                               </div>

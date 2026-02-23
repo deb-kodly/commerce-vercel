@@ -1,70 +1,110 @@
-import { CCRZ_CATEGORY_API_URL } from 'lib/constants';
+import { CCRZ_CATEGORY_API_URL, SFDC_OAUTH_BASE_URL, SFDC_COMMERCE_API_VERSION, ROOT_CATEGORY_ID } from 'lib/constants';
 import { Category, Collection } from './types';
 import { makeSfdcApiCall, HttpMethod } from './sfdcApiUtil';
+import { getServiceUserToken } from 'app/api/auth/authUtil';
 import { cache } from 'react';
 
-// In-memory cache with TTL for getCategories
-let categoriesCache: { data: Category[] | null; generatedAt: number } = { data: null, generatedAt: 0 };
+// In-memory cache keyed by parentCategoryId
+let categoriesCacheMap = new Map<string, { data: Category[]; generatedAt: number }>();
 const CATEGORIES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in ms
 
-function flattenCategories(categoryList: any[]): Category[] {
-  const result: Category[] = [];
-  for (const cat of categoryList) {
-    if (cat.sfid && cat.sfdcName) {
-      result.push({
-        categoryId: cat.sfid,
-        categoryName: cat.sfdcName,
-        parentCategoryId: cat.parentCategory || undefined,
-        numberOfProducts: cat.productCount ?? 0,
-        path: `search/${cat.sfid}`,
-      });
-    }
-    if (Array.isArray(cat.productCategories) && cat.productCategories.length > 0) {
-      result.push(...flattenCategories(cat.productCategories));
-    }
-  }
-  return result;
+async function soqlFetch(soql: string): Promise<any> {
+  const serviceToken = await getServiceUserToken();
+  const url = `${SFDC_OAUTH_BASE_URL}/services/data/${SFDC_COMMERCE_API_VERSION}/query?q=${encodeURIComponent(soql)}`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${serviceToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) throw new Error(`SOQL failed (${response.status}): ${text}`);
+  return data;
 }
 
 /**
- * Returns a cached, sorted list of categories with products.
- * @returns {Promise<Category[]>} Sorted categories with products.
+ * Returns direct child categories of the given parent category ID.
+ * The parentCategoryId is matched against ccrz__CategoryID__c (the custom ID field,
+ * e.g. '999999' for root).
+ *
+ * Results are cached in-memory per parentCategoryId with a 5-minute TTL.
  */
-export const getCategories = cache(async function getCategories(): Promise<Category[]> {
+export const getCategories = cache(async function getCategories(parentCategoryId: string = ROOT_CATEGORY_ID): Promise<Category[]> {
   const now = Date.now();
-  if (categoriesCache.data && now - categoriesCache.generatedAt < CATEGORIES_CACHE_TTL) {
-    return categoriesCache.data;
+  const cached = categoriesCacheMap.get(parentCategoryId);
+  if (cached && cached.data.length > 0 && now - cached.generatedAt < CATEGORIES_CACHE_TTL) {
+    return cached.data;
   }
 
   try {
-    const response = await makeSfdcApiCall(CCRZ_CATEGORY_API_URL + '/fetch?ccLog=shopxLog', HttpMethod.POST, { ROOTCATEGORY: 'a3J2p0000035jt3EAA' });
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
+    const soql = `SELECT Id, Name, ccrz__CategoryID__c, ccrz__ParentCategory__c FROM ccrz__E_Category__c WHERE ccrz__ParentCategory__r.ccrz__CategoryID__c = '${parentCategoryId}' ORDER BY Name LIMIT 500`;
 
-    if (data?.ccLog) {
-      console.log('[getCategories] ccLog:', JSON.stringify(data.ccLog, null, 2));
-    }
+    console.log('\n=== [getCategories] SOQL REQUEST ===');
+    console.log('parentCategoryId:', parentCategoryId);
+    console.log('SOQL:', soql);
 
-    if (!data?.success || !Array.isArray(data.categoryList)) {
+    const data = await soqlFetch(soql);
+
+    console.log('\n=== [getCategories] SOQL RESPONSE ===');
+    console.log('Records returned:', data?.records?.length ?? 0);
+    console.log('First record:', JSON.stringify(data?.records?.[0] ?? null));
+
+    if (!Array.isArray(data?.records)) {
+      console.log('No records array in response:', data);
       return [];
     }
 
-    const categories = flattenCategories(data.categoryList);
+    const categories: Category[] = data.records.map((r: any) => ({
+      categoryId: r.ccrz__CategoryID__c || r.Id, // URL-safe custom ID
+      sfid: r.Id,                                 // Salesforce record Id for product API
+      categoryName: r.Name,
+      parentCategoryId: r.ccrz__ParentCategory__c || undefined,
+      numberOfProducts: 0,
+      path: `search/${r.ccrz__CategoryID__c || r.Id}`,
+    }));
+
     const sorted = categories.sort((a, b) => a.categoryName.localeCompare(b.categoryName));
-    categoriesCache = { data: sorted, generatedAt: now };
+    categoriesCacheMap.set(parentCategoryId, { data: sorted, generatedAt: now });
     return sorted;
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error('Error fetching categories via SOQL:', error);
     return [];
   }
 });
 
 /**
+ * Returns the display name of a category by its ccrz__CategoryID__c custom ID.
+ * Used by CategoryLabelServer for breadcrumb/hero label.
+ */
+export const getCategoryById = cache(async function getCategoryById(id: string): Promise<string | null> {
+  try {
+    const soql = `SELECT Name FROM ccrz__E_Category__c WHERE ccrz__CategoryID__c = '${id}' LIMIT 1`;
+    const data = await soqlFetch(soql);
+    return data?.records?.[0]?.Name ?? null;
+  } catch (error) {
+    console.error('Error fetching category by id:', error);
+    return null;
+  }
+});
+
+/**
+ * Returns the Salesforce record Id for a category given its ccrz__CategoryID__c custom ID.
+ * The CloudCraze product API (/ccproduct/v9/find CATEGORYIDS) requires Salesforce record Ids.
+ */
+export const getCategorySfid = cache(async function getCategorySfid(customId: string): Promise<string | null> {
+  try {
+    const soql = `SELECT Id FROM ccrz__E_Category__c WHERE ccrz__CategoryID__c = '${customId}' LIMIT 1`;
+    const data = await soqlFetch(soql);
+    return data?.records?.[0]?.Id ?? null;
+  } catch (error) {
+    console.error('Error fetching category sfid:', error);
+    return null;
+  }
+});
+
+/**
  * Returns a limited set of categories such that the total number of products does not exceed maxProducts.
- * This is used to limit the number of products displayed on the home page to increase the performance.
- * @param {Category[]} categories - The list of categories to filter.
- * @param {number} [maxProducts=3] - The maximum number of products to include.
- * @returns {Category[]} The limited set of categories.
  */
 export function getLimitedCategories(categories: Category[], maxProducts = 3): Category[] {
   const selectedCategories: Category[] = [];
@@ -72,8 +112,6 @@ export function getLimitedCategories(categories: Category[], maxProducts = 3): C
 
   for (const category of categories) {
     const productsCount = Number(category.numberOfProducts);
-
-    // Always include at least one category
     if (selectedCategories.length === 0 || totalProducts + productsCount <= maxProducts) {
       selectedCategories.push(category);
       totalProducts += productsCount;
@@ -86,8 +124,6 @@ export function getLimitedCategories(categories: Category[], maxProducts = 3): C
 
 /**
  * Fetches a single collection (category) by its handle or ID.
- * @param {string} handle - The category handle or ID.
- * @returns {Promise<Collection | undefined>} The collection object, or undefined if not found.
  */
 export async function getCollection(handle: string): Promise<Collection | undefined> {
   try {

@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Category } from 'lib/sfdc';
+import type { Category } from 'lib/sfdc/types';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';

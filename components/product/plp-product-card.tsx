@@ -5,173 +5,259 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { addItem } from 'components/cart/actions';
 import { useCart } from 'components/cart/cart-context';
-import { Product } from 'lib/sfdc';
+import type { Product } from 'lib/sfdc/types';
 
-export function PlpProductCard({ product }: { product: Product }) {
+export function PlpProductCard({ product, priority = false }: { product: Product; priority?: boolean }) {
   const { addCartItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
 
-  const defaultVariant = product.variants?.[0];
   const price = product.priceRange?.minVariantPrice;
-  const isAvailable = product.availableForSale && !!defaultVariant;
+  const isAvailable = product.availableForSale;
 
-  const currencySymbol = price?.currencyCode === 'GBP' ? '£' : (price?.currencyCode === 'USD' ? '$' : '€');
-  const priceAmount = price ? Number(price.amount).toFixed(2) : null;
+  const currencySymbol = price?.currencyCode === 'GBP' ? '£' : price?.currencyCode === 'USD' ? '$' : '€';
+  const priceNumeric = price ? Number(price.amount) : 0;
+  const priceAmount = priceNumeric > 0 ? priceNumeric.toFixed(2) : null;
 
-  const tags = product.tags?.slice(0, 3) ?? [];
-  const variantTitle = defaultVariant?.title && defaultVariant.title !== 'Default Title' ? defaultVariant.title : null;
+  const basePriceNumeric = product.basePrice ? Number(product.basePrice.amount) : 0;
+  const basePriceAmount = basePriceNumeric > priceNumeric ? basePriceNumeric.toFixed(2) : null;
+
+  const tags = product.tags?.slice(0, 4) ?? [];
+
+  // Format option label: "Pack: 12 x 85g" (only shown when pack data is available)
+  const formatLabel = product.unitsPerBox && product.unitWeight
+    ? `Pack: ${product.unitsPerBox} x ${product.unitWeight}`
+    : product.unitsPerBox
+    ? `Pack: ${product.unitsPerBox}`
+    : null;
+
+  // First promo name (if any)
+  const firstPromo = product.promos ? Object.values(product.promos)[0] : null;
 
   const handleAdd = () => {
-    if (!defaultVariant || !isAvailable) return;
+    if (!isAvailable) return;
     setError(null);
     startTransition(async () => {
-      addCartItem(defaultVariant, product);
-      const result = await addItem(null, defaultVariant.id);
+      addCartItem(product, quantity);
+      const result = await addItem(null, product.id, quantity);
       if (result) setError(result);
     });
   };
 
   return (
-    <div className="bg-white rounded-lg p-4 flex flex-col gap-3 h-full">
+    <div className="bg-white rounded-lg p-4 flex flex-col gap-3 h-full" style={{ border: '1px solid #f0eeee' }}>
 
-      {/* ── Image area ──────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 items-center w-full">
+      {/* ── Upper: bookmark row + image + tags ─────────────────── */}
+      <div className="flex flex-col items-center w-full gap-3">
 
-        {/* Bookmark / save icon (top right) */}
-        <div className="flex justify-end w-full">
+        {/* Promo badge (left) + Bookmark (right) */}
+        <div className="flex justify-between items-center w-full">
+          {firstPromo ? (
+            <div
+              className="flex items-center gap-1 rounded px-1"
+              style={{ backgroundColor: '#FFEB84', height: 20 }}
+            >
+              <img src="/images/Bond_PromoIcon.svg" alt="" style={{ width: 12, height: 12 }} />
+              <p className="text-[10px] font-bold text-[#1b1818] leading-none m-0 tracking-[0.2px]">
+                {firstPromo}
+              </p>
+            </div>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             className="opacity-30 hover:opacity-60 transition-opacity"
             aria-label="Save for later"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1b1818" strokeWidth="1.5">
-              <path d="M5 4h14v17l-7-4-7 4V4z" />
-            </svg>
+            <img src="/images/Bond_Bookmark.svg" alt="" style={{ width: 24, height: 24 }} />
           </button>
         </div>
 
-        {/* Product image: 156×156 px, object-contain */}
+        {/* Product image: 156×156 */}
         <Link
           href={`/product/${product.handle}`}
-          className="block relative rounded-md overflow-hidden shrink-0"
+          className="block relative shrink-0"
           style={{ width: 156, height: 156 }}
         >
-          {product.featuredImage?.url ? (
+          {product.featuredImage?.url && !imgError ? (
             <Image
               src={product.featuredImage.url}
               alt={product.title}
               fill
+              priority={priority}
               className="object-contain"
               sizes="156px"
+              onError={() => setImgError(true)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-[#f8f7f7]">
-              <img src="/images/Bond_DocumentTableSearchIcon.svg" alt="" className="h-12 w-12 opacity-20" />
+            <div className="w-full h-full flex items-center justify-center bg-[#f8f7f7] rounded-md">
+              <img
+                src="/logo-affinity.png"
+                alt=""
+                style={{ width: 80, height: 'auto', objectFit: 'contain', opacity: 0.2 }}
+              />
             </div>
           )}
         </Link>
 
-        {/* Category tags */}
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 items-center w-full">
-            {/* Brand indicator dot (dark green) */}
-            <div className="bg-[#00573f] rounded-sm shrink-0" style={{ width: 20, height: 20 }} />
+        {/* Tags: brand colour dot + category tags — hidden until tags are available from API */}
+        {(product.brandColor || tags.length > 0) && (
+          <div className="flex gap-1 items-center w-full flex-wrap" style={{ minHeight: 20 }}>
+            {product.brandColor && (
+              <div
+                className="rounded-sm shrink-0"
+                style={{ width: 20, height: 20, backgroundColor: product.brandColor }}
+              />
+            )}
             {tags.map((tag) => (
-              <span
-                key={tag}
-                className="bg-[#f8f7f7] text-[#665c5c] text-[10px] font-bold uppercase px-1 rounded-sm leading-[14px] flex items-center"
-                style={{ height: 20 }}
-              >
-                {tag}
-              </span>
+              <div key={tag} className="bg-[#f8f7f7] rounded-sm flex items-center px-1" style={{ height: 20 }}>
+                <p className="text-[#1b1818] text-[10px] font-bold leading-none m-0 uppercase tracking-[0.5px]">{tag}</p>
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* ── Content ─────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 w-full flex-1">
+      {/* ── Middle: name, subtitle, format, price ───────────────── */}
+      <div className="flex flex-col gap-2 w-full flex-1">
 
-        {/* Product name */}
-        <div className="flex flex-col gap-0.5">
-          <Link href={`/product/${product.handle}`} className="group">
-            <p className="text-[18px] font-bold leading-[24px] text-[#1b1818] overflow-hidden text-ellipsis whitespace-nowrap group-hover:text-[#00573f] transition-colors">
-              {product.title}
-            </p>
-          </Link>
+        {/* Product name block: category label + main name + subtitle */}
+        <div className="flex flex-col gap-0.5 w-full">
+          {/* Small category label above (maps from description/subtitle) */}
           {product.description && (
-            <p className="text-[12px] leading-[18px] text-[#665c5c] overflow-hidden text-ellipsis whitespace-nowrap">
+            <p className="text-[12px] font-normal leading-[18px] text-[#1b1818] m-0">
               {product.description}
+            </p>
+          )}
+          {/* Main product name */}
+          <Link href={`/product/${product.handle}`} className="group">
+            <h5
+              className="text-[18px] font-bold leading-[24px] text-[#1b1818] m-0 group-hover:text-[#00573f] transition-colors"
+              style={{
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              } as React.CSSProperties}
+              title={product.title}
+            >
+              {product.title}
+            </h5>
+          </Link>
+          {/* Product type / tech line (e.g. "Snack", "Wet Food") */}
+          {product.productType && (
+            <p className="text-[12px] font-normal leading-[18px] m-0" style={{ color: '#665c5c' }}>
+              {product.productType}
             </p>
           )}
         </div>
 
-        {/* Format chip (variant title) */}
-        {variantTitle && (
-          <div className="flex gap-1 flex-wrap">
+        {/* EAN / SKU row */}
+        {(product.ean || product.sku) && (
+          <div className="grid text-[10px] leading-[16px] gap-x-2" style={{ gridTemplateColumns: 'auto 1fr auto 1fr', color: '#a59c9c' }}>
+            {product.ean && (
+              <>
+                <span>EAN</span>
+                <span className="font-bold text-[#1b1818]">{product.ean}</span>
+              </>
+            )}
+            {product.sku && (
+              <>
+                <span>SKU</span>
+                <span className="font-bold text-[#1b1818]">{product.sku}</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Format option — pill chip style */}
+        {formatLabel && (
+          <div className="flex">
             <span
-              className="border border-[#1b1818] text-[12px] font-bold text-[#1b1818] flex items-center px-3 rounded-full whitespace-nowrap"
-              style={{ height: 28 }}
+              className="inline-flex items-center text-[12px] font-normal leading-[20px] text-[#1b1818]"
+              style={{
+                border: '1.5px solid #1b1818',
+                borderRadius: 1000,
+                height: 28,
+                paddingLeft: 12,
+                paddingRight: 12,
+              }}
             >
-              {variantTitle}
+              {formatLabel}
             </span>
           </div>
         )}
 
         {/* Price */}
         {priceAmount && (
-          <div className="flex items-baseline gap-0.5">
-            <span className="text-[14px] font-bold leading-[19px] text-[#1b1818]">{currencySymbol}</span>
-            <span className="text-[18px] font-bold leading-[24px] text-[#1b1818]">{priceAmount}</span>
+          <div className="flex items-baseline gap-2 mt-auto">
+            <span className="text-[18px] font-bold leading-[24px] text-[#1b1818]">
+              {currencySymbol} {priceAmount}
+            </span>
+            {basePriceAmount && (
+              <span className="text-[12px] font-normal leading-[18px] line-through" style={{ color: '#a59c9c' }}>
+                {currencySymbol}{basePriceAmount}
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      {/* ── Actions: quantity + Add button ──────────────────── */}
-      <div className="flex gap-2 w-full" style={{ height: 40 }}>
+      {/* ── Lower: quantity + ADD ─────────────────────────────── */}
+      <div className="flex items-center gap-2 w-full" style={{ height: 40 }}>
 
-        {/* Quantity selector */}
+        {/* Quantity selector with circle buttons */}
         <div
-          className="flex flex-1 items-center justify-between border border-[#1b1818] rounded-md px-4 gap-2"
+          className="flex items-center justify-between flex-1 h-full rounded border border-[#1b1818] px-2"
           style={{ opacity: isAvailable ? 1 : 0.3 }}
         >
           <button
             type="button"
             onClick={() => setQuantity((q) => Math.max(1, q - 1))}
             disabled={!isAvailable || quantity <= 1}
-            className="text-[#1b1818] text-[18px] leading-none hover:opacity-60 disabled:opacity-30"
+            className="flex items-center justify-center rounded-full border border-[#1b1818] text-[#1b1818] text-[16px] font-light hover:bg-[#1b1818] hover:text-white transition-colors disabled:opacity-30 disabled:pointer-events-none"
             aria-label="Decrease quantity"
+            style={{ width: 22, height: 22, lineHeight: 1, paddingBottom: 1 }}
           >
             −
           </button>
-          <span className="text-[18px] font-bold text-[#1b1818] text-center min-w-[20px]">
+          <span className="text-[18px] font-bold leading-[24px] text-[#1b1818]">
             {quantity}
           </span>
           <button
             type="button"
             onClick={() => setQuantity((q) => q + 1)}
             disabled={!isAvailable}
-            className="text-[#1b1818] text-[18px] leading-none hover:opacity-60 disabled:opacity-30"
+            className="flex items-center justify-center rounded-full border border-[#1b1818] text-[#1b1818] text-[16px] font-light hover:bg-[#1b1818] hover:text-white transition-colors disabled:opacity-30 disabled:pointer-events-none"
             aria-label="Increase quantity"
+            style={{ width: 22, height: 22, lineHeight: 1, paddingBottom: 1 }}
           >
             +
           </button>
         </div>
 
-        {/* Add button */}
+        {/* ADD button */}
         <button
           type="button"
           onClick={handleAdd}
           disabled={!isAvailable || isPending}
-          className="flex-1 bg-[#1b1818] text-white text-[16px] font-bold uppercase tracking-[0.16px] rounded-md hover:bg-black/80 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex items-center justify-center h-full rounded text-white text-[14px] font-bold tracking-[1px] uppercase transition-colors disabled:cursor-not-allowed"
+          style={{ width: '49%', backgroundColor: !isAvailable ? '#a59c9c' : isPending ? '#665c5c' : '#1b1818' }}
         >
-          {isPending ? '...' : isAvailable ? 'Add' : 'N/A'}
+          {isPending ? (
+            <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : isAvailable ? (
+            'ADD'
+          ) : (
+            'Out of Stock'
+          )}
         </button>
       </div>
 
-      {error && <p className="text-red-500 text-[11px]">{error}</p>}
+      {error && <p className="text-red-500 text-[11px] mt-1">{error}</p>}
     </div>
   );
 }

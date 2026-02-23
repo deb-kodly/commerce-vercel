@@ -21,7 +21,8 @@ export async function makeSfdcApiCall(
   endpoint: string,
   httpMethod: HttpMethod,
   body?: object,
-  req?: NextRequest
+  req?: NextRequest,
+  currPageName?: string
 ): Promise<Response> {
   try {
     const isGuestUserHeader = req?.headers.get('x-guest-user') ?? null;
@@ -30,7 +31,7 @@ export async function makeSfdcApiCall(
         ? (JSON.parse(isGuestUserHeader) as boolean)
         : ((await getIsGuestUserFromCookie()) ?? true);
 
-    const headers = await buildHeaders(isGuestUser, req);
+    const headers = await buildHeaders(isGuestUser, req, currPageName);
 
     const fetchOptions: RequestInit = {
       method: httpMethod,
@@ -52,7 +53,8 @@ export async function makeSfdcApiCall(
 
 async function buildHeaders(
   isGuestUser: boolean,
-  req?: NextRequest
+  req?: NextRequest,
+  currPageName?: string
 ): Promise<Record<string, string>> {
   const serviceToken = await getServiceUserToken();
 
@@ -68,7 +70,7 @@ async function buildHeaders(
     userLocale = (await getUserLocaleFromCookie()) ?? '';
   }
 
-  const ccrzContext = buildCcrzContext(portalUserId, effAccountId, userLocale);
+  const ccrzContext = buildCcrzContext(portalUserId, effAccountId, userLocale, currPageName);
   console.log('[buildHeaders] ccrz-context (decoded):', Buffer.from(ccrzContext, 'base64').toString('utf8'));
 
   return {

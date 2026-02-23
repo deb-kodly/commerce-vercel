@@ -77,7 +77,7 @@ export default function HomePage() {
           <div className="flex flex-col items-center text-center flex-1 gap-5">
             <div className="flex items-center justify-center h-20 w-20">
               <img
-                src="/images/Bond_AddShoppingCart.svg"
+                src="/images/Bond_ReceiptSearchIcon.svg"
                 alt="Browse shop"
                 className="h-16 w-16 object-contain"
               />

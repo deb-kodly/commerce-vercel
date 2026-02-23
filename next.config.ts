@@ -37,7 +37,17 @@ export default {
         protocol: 'https',
         hostname: 's3.amazonaws.com',
         pathname: '/**',
-      }
+      },
+      {
+        protocol: 'https',
+        hostname: 'static.naturesvariety.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'static.advance-affinity.com',
+        pathname: '/**',
+      },
     ],
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,

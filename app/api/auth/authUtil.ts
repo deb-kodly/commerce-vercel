@@ -188,8 +188,8 @@ async function fetchUserAccountId(userId: string): Promise<{ accountId: string; 
  * Builds the Base64-encoded ccrz-context header value.
  * Pass portalUserId / effAccountId for authenticated users; omit (or leave empty) for guests.
  */
-export function buildCcrzContext(portalUserId = '', effAccountId = '', userLocale = ''): string {
-  const ctx = {
+export function buildCcrzContext(portalUserId = '', effAccountId = '', userLocale = '', currPageName = ''): string {
+  const ctx: Record<string, unknown> = {
     storefront: SFDC_CLOUDCRAZE_STOREFRONT ?? '',
     portalUserId,
     effAccountId,
@@ -197,5 +197,6 @@ export function buildCcrzContext(portalUserId = '', effAccountId = '', userLocal
     queryParams: {},
     currentCartId: '',
   };
+  if (currPageName) ctx.currPageName = currPageName;
   return Buffer.from(JSON.stringify(ctx)).toString('base64');
 }

@@ -1,4 +1,3 @@
-import { Category } from 'lib/sfdc';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, lazy } from 'react';
@@ -11,14 +10,10 @@ const LazyCartModal = lazy(() => import('components/cart/modal'));
 export async function Navbar({
   isGuestUser,
   userName,
-  categoriesPromise
 }: {
   isGuestUser: boolean | null;
   userName: string | null;
-  categoriesPromise: Promise<Category[]>;
 }) {
-  let categories = await categoriesPromise;
-  categories = categories?.slice(0, 2);
 
   return (
     <header className="sticky top-0 z-40 w-full">
@@ -33,27 +28,28 @@ export async function Navbar({
         {/* Mobile hamburger */}
         <div className="block flex-none md:hidden mr-3">
           <Suspense fallback={null}>
-            <MobileMenu categories={categories} />
+            <MobileMenu categories={[]} />
           </Suspense>
         </div>
 
         {/* LEFT: Logo + nav entries (Browse Shop, Promos, categories, Search) */}
         <div className="flex items-center gap-6 shrink-0">
-          {/* Logo: 91×56px */}
+          {/* Logo: 97×63px */}
           <Link href="/" prefetch={true} className="shrink-0">
             <Image
-              src="/logo-affinity.png"
+              src="/images/Bond_Logo.png"
               alt="Affinity Pet Care"
-              width={91}
-              height={56}
-              className="object-contain h-14 w-auto"
+              width={97}
+              height={63}
+              priority
+              className="object-contain cursor-pointer"
             />
           </Link>
 
           {/* Nav entries — stretch to full header height, each item h-20 px-3 */}
           <div className="hidden md:flex items-stretch h-20">
             <Link
-              href="/search/a3J2p0000035jt3EAA"
+              href="/search/ALL_UK"
               prefetch={true}
               className="flex items-center h-20 px-3 text-[14px] font-bold uppercase tracking-[0.14px] text-[#665c5c] hover:text-black whitespace-nowrap"
             >
@@ -67,17 +63,6 @@ export async function Navbar({
             >
               Promos
             </Link>
-
-            {categories.map((cat: Category) => (
-              <Link
-                key={cat.categoryName}
-                href={`/${cat.path}`}
-                prefetch={true}
-                className="flex items-center h-20 px-3 text-[14px] font-bold uppercase tracking-[0.14px] text-[#665c5c] hover:text-black whitespace-nowrap"
-              >
-                {cat.categoryName}
-              </Link>
-            ))}
 
             {/* Search bar — part of the left nav cluster per Figma, w-264px */}
             <div className="hidden lg:flex items-center h-20 px-3">

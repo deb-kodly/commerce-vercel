@@ -1,8 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Category } from 'lib/sfdc';
 
-export default async function Footer({ categoriesPromise }: { categoriesPromise: Promise<Category[]> }) {
+export default async function Footer() {
   return (
     <footer>
       {/* ── Section 1: Sitemap ─────────────────────────────────────────── */}

@@ -2,14 +2,14 @@
 
 import { getCartIdFromCookie, setCartIdInCookie } from 'app/api/auth/cookieUtils';
 import { TAGS } from 'lib/constants';
-import { addToCart, createCart, getCart, removeFromCart, updateCart, Cart } from 'lib/sfdc';
+import { addToCart, createCart, getCart, getCartWithDetails, removeFromCart, updateCart } from 'lib/sfdc';
 import { revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCookie } from 'lib/server-cookies';
 
-export async function addItem(prevState: any, selectedVariantId: string | undefined) {
+export async function addItem(prevState: any, productId: string | undefined, quantity: number = 1) {
   try {
-    await addToCart({ productId: selectedVariantId!, quantity: 1, type: 'Product' });
+    await addToCart({ productId: productId!, quantity });
     revalidateTag(TAGS.cart);
   } catch (e) {
     return 'Error adding item to cart';
@@ -61,7 +61,7 @@ export async function updateItemQuantity(
       }
     } else if (quantity > 0) {
       // If the item doesn't exist in the cart and quantity > 0, add it
-      await addToCart({ productId: merchandiseId, quantity, type: 'Product' });
+      await addToCart({ productId: merchandiseId, quantity });
     }
 
     revalidateTag(TAGS.cart);
@@ -74,6 +74,10 @@ export async function updateItemQuantity(
 export async function redirectToCheckout() {
   let cart = await getCart();
   redirect(cart!.checkoutUrl);
+}
+
+export async function fetchCartWithDetails() {
+  return getCartWithDetails();
 }
 
 export async function createCartAndSetCookie() {

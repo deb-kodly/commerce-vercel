@@ -13,8 +13,8 @@ export async function createCart(): Promise<Cart> {
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
   const cartRaw = data?.cartList?.[0];
-  if (cartRaw?.ENCID) {
-    await setCartIdInCookie(cartRaw.ENCID);
+  if (cartRaw?.encryptedId) {
+    await setCartIdInCookie(cartRaw.encryptedId);
   }
   return mapCart(cartRaw);
 }
@@ -25,7 +25,6 @@ export async function createCart(): Promise<Cart> {
 export async function addToCart(lines: {
   productId: string;
   quantity: number;
-  type?: string;
 }): Promise<Cart> {
   let encId = await getCartIdFromCookie();
   if (!encId) {
@@ -89,13 +88,39 @@ export async function getCart(): Promise<Cart | undefined> {
 
     const cartRaw = data.cartList[0];
 
-    // Persist the ENCID into the cart cookie if it wasn't already set
-    if (cartRaw?.ENCID && !(await getCartIdFromCookie())) {
-      await setCartIdInCookie(cartRaw.ENCID);
-    }
-    const cartItems: any[] = cartRaw.ECartItems || [];
+    // CloudCraze returns cart items under ECartItemsS (not ECartItems)
+    const cartItems: any[] = cartRaw.ECartItemsS || [];
 
-    // Fetch full product details for all products in the cart
+    // Map items from cart data only (no extra product fetch here).
+    // Product details are fetched separately when the cart modal is opened via getCartWithDetails().
+    const mappedItems: CartItem[] = cartItems.map((ci: any) => mapCartItem(ci, {}, {}));
+    const cart = mapCart(cartRaw);
+    cart.lines = mappedItems;
+    cart.totalQuantity = mappedItems.reduce((sum, item) => sum + item.quantity, 0);
+    return cart;
+  } catch (error) {
+    console.error('Error fetching cart:', error);
+    return undefined;
+  }
+}
+
+/**
+ * Fetches the cart with full product details (title, image, SKU).
+ * Called only when the cart modal is opened — not on every page load.
+ */
+export async function getCartWithDetails(): Promise<Cart | undefined> {
+  try {
+    const response = await makeSfdcApiCall(CCRZ_CART_API_URL + '/getactive', HttpMethod.POST, {});
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+
+    if (!data?.success || !Array.isArray(data.cartList) || data.cartList.length === 0) {
+      return undefined;
+    }
+
+    const cartRaw = data.cartList[0];
+    const cartItems: any[] = cartRaw.ECartItemsS || [];
+
     const productSfids: string[] = [
       ...new Set(cartItems.map((ci: any) => ci.product).filter(Boolean)),
     ] as string[];
@@ -105,7 +130,7 @@ export async function getCart(): Promise<Cart | undefined> {
 
     if (productSfids.length > 0) {
       const prodResponse = await makeSfdcApiCall(CCRZ_PRODUCT_API_URL + '/fetch', HttpMethod.POST, {
-        PRODUCTLIST: productSfids,
+        PRODUCTLIST: productSfids.slice(0, 20),
         ISPRICED: true,
       });
       const prodText = await prodResponse.text();
@@ -123,33 +148,36 @@ export async function getCart(): Promise<Cart | undefined> {
     );
     const cart = mapCart(cartRaw);
     cart.lines = mappedItems;
+    cart.totalQuantity = mappedItems.reduce((sum, item) => sum + item.quantity, 0);
     return cart;
   } catch (error) {
-    console.error('Error fetching cart:', error);
+    console.error('Error fetching cart with details:', error);
     return undefined;
   }
 }
 
 function mapCart(raw: any): Cart {
+  const currency = raw?.currencyISOCode || 'GBP';
   return {
     id: raw?.sfid,
     checkoutUrl: '',
     cost: {
       subtotalAmount: {
-        amount: String(raw?.subTotalAmount || raw?.totalAmount || '0'),
-        currencyCode: raw?.currencyISOCode || 'USD',
+        amount: String(raw?.subtotalAmount || raw?.totalAmount || '0'),
+        currencyCode: currency,
       },
       totalAmount: {
         amount: String(raw?.totalAmount || '0'),
-        currencyCode: raw?.currencyISOCode || 'USD',
+        currencyCode: currency,
       },
       totalTaxAmount: {
-        amount: String(raw?.totalTaxAmount || '0'),
-        currencyCode: raw?.currencyISOCode || 'USD',
+        amount: String(raw?.taxSubTotalAmount || '0'),
+        currencyCode: currency,
       },
     },
     lines: [],
-    totalQuantity: Number(raw?.totalCartItems) || 0,
+    // Will be recalculated from lines after mapping
+    totalQuantity: Number(raw?.totalQuantity) || 0,
   };
 }
 
@@ -178,7 +206,6 @@ function mapCartItem(
     merchandise: {
       id: ci.product, // product SFID — used to re-add when updateCart is called
       title: product.sfdcName || '',
-      selectedOptions: [],
       product: {
         id: ci.product,
         handle: sku,
