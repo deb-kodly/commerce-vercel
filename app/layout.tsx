@@ -14,6 +14,7 @@ const notoSans = Noto_Sans({
 import { getCart, Cart } from 'lib/sfdc';
 import { ensureStartsWith } from 'lib/utils';
 import { headers } from 'next/headers';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { ReactNode, Suspense } from 'react';
 import { Toaster } from 'sonner';
 import './globals.css';
@@ -82,6 +83,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </Suspense>
           </CartProvider>
         )}
+        <SpeedInsights />
       </body>
     </html>
   );
